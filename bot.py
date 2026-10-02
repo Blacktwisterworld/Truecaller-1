@@ -22,15 +22,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-HF_TOKEN = os.environ["HF_TOKEN"]
 PORT = int(os.environ.get("PORT", 8080))
 
 HF_BASE = "https://huggingface.co/datasets/Cyber-insight-309/truecallerdata/resolve/main"
 
+# Bina token — dataset public hai
 FILES = [
-    f"{HF_BASE}/combined_selected_columns.parquet?token={HF_TOKEN}",
-    f"{HF_BASE}/combined_truecaller_data.parquet?token={HF_TOKEN}",
-    f"{HF_BASE}/final_combined_data.parquet?token={HF_TOKEN}",
+    f"{HF_BASE}/combined_selected_columns.parquet",
+    f"{HF_BASE}/combined_truecaller_data.parquet",
+    f"{HF_BASE}/final_combined_data.parquet",
 ]
 
 con = duckdb.connect()
@@ -107,7 +107,7 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
                 if rows:
                     found_data = (cols, rows[0])
-                    found_source = url.split("/")[-1].split("?")[0]
+                    found_source = url.split("/")[-1]
                     logger.info(f"Found in file {i}")
                     break
             except Exception as e:
