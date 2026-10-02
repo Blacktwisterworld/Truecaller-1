@@ -43,7 +43,6 @@ user_last = defaultdict(float)
 RATE_LIMIT_SEC = 2
 
 
-# ---- Health server (UptimeRobot ke liye) ----
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -52,7 +51,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"OK")
 
     def log_message(self, format, *args):
-        pass  # logs clean rakhne ke liye
+        pass
 
 
 def start_health_server():
@@ -61,7 +60,6 @@ def start_health_server():
     server.serve_forever()
 
 
-# ---- Bot handlers ----
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 *Truecaller Bot*\n\n"
@@ -99,7 +97,7 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         for i, url in enumerate(FILES, start=1):
             try:
-                logger.info(f"Searching file {i}")
+                logger.info(f"Searching file {i}: {url.split('/')[-1]}")
                 query = f'SELECT * FROM read_parquet(\'{url}\') WHERE "Number" = ? LIMIT 1'
                 result = con.execute(query, [num])
                 cols = [d[0] for d in result.description]
@@ -108,6 +106,7 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 if rows:
                     found_data = (cols, rows[0])
                     found_source = url.split("/")[-1]
+                    logger.info(f"Found in file {i}")
                     break
             except Exception as e:
                 logger.warning(f"File {i} error: {e}")
@@ -120,7 +119,9 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             pass
 
         if not found_data:
-            msg = f"❌ `{num}` ka koi record nahi mila."
+            msg = f"❌ `{num}` ka koi record nahi mila teeno files mein."
+            if errors:
+                msg += f"\n\n⚠️ {len(errors)} file(s) mein error aaya."
             cache[num] = msg
             await update.message.reply_text(msg, parse_mode="Markdown")
             return
@@ -150,7 +151,6 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    # Health server background mein chalao
     threading.Thread(target=start_health_server, daemon=True).start()
 
     app = Application.builder().token(BOT_TOKEN).build()
