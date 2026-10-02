@@ -22,27 +22,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-HF_TOKEN = os.environ["HF_TOKEN"]  # <-- NAYA
+HF_TOKEN = os.environ["HF_TOKEN"]
 PORT = int(os.environ.get("PORT", 8080))
 
 HF_BASE = "https://huggingface.co/datasets/Cyber-insight-309/truecallerdata/resolve/main"
+
 FILES = [
-    f"{HF_BASE}/combined_selected_columns.parquet",
-    f"{HF_BASE}/combined_truecaller_data.parquet",
-    f"{HF_BASE}/final_combined_data.parquet",
+    f"{HF_BASE}/combined_selected_columns.parquet?token={HF_TOKEN}",
+    f"{HF_BASE}/combined_truecaller_data.parquet?token={HF_TOKEN}",
+    f"{HF_BASE}/final_combined_data.parquet?token={HF_TOKEN}",
 ]
 
 con = duckdb.connect()
 con.execute("INSTALL httpfs; LOAD httpfs;")
-
-# HF Authorization header set karo - YEH SABSE IMPORTANT HAI
-con.execute(f"""
-    CREATE SECRET hf_secret (
-        TYPE HTTP,
-        BEARER_TOKEN '{HF_TOKEN}'
-    );
-""")
-
 con.execute("SET enable_http_metadata_cache=true;")
 con.execute("SET enable_object_cache=true;")
 con.execute("SET http_timeout=180000;")
@@ -107,7 +99,7 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         for i, url in enumerate(FILES, start=1):
             try:
-                logger.info(f"Searching file {i}: {url.split('/')[-1]}")
+                logger.info(f"Searching file {i}")
                 query = f'SELECT * FROM read_parquet(\'{url}\') WHERE "Number" = ? LIMIT 1'
                 result = con.execute(query, [num])
                 cols = [d[0] for d in result.description]
@@ -115,7 +107,7 @@ async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
                 if rows:
                     found_data = (cols, rows[0])
-                    found_source = url.split("/")[-1]
+                    found_source = url.split("/")[-1].split("?")[0]
                     logger.info(f"Found in file {i}")
                     break
             except Exception as e:
