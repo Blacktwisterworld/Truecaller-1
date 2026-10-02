@@ -22,6 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
+HF_TOKEN = os.environ["HF_TOKEN"]  # <-- NAYA
 PORT = int(os.environ.get("PORT", 8080))
 
 HF_BASE = "https://huggingface.co/datasets/Cyber-insight-309/truecallerdata/resolve/main"
@@ -33,6 +34,15 @@ FILES = [
 
 con = duckdb.connect()
 con.execute("INSTALL httpfs; LOAD httpfs;")
+
+# HF Authorization header set karo - YEH SABSE IMPORTANT HAI
+con.execute(f"""
+    CREATE SECRET hf_secret (
+        TYPE HTTP,
+        BEARER_TOKEN '{HF_TOKEN}'
+    );
+""")
+
 con.execute("SET enable_http_metadata_cache=true;")
 con.execute("SET enable_object_cache=true;")
 con.execute("SET http_timeout=180000;")
