@@ -44,7 +44,7 @@ def run_web_server():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 Bot Online\n\n"
-        "Sirf number search karne ke liye:\n\n"
+        "Number search karne ke liye:\n\n"
         "/search 6000010150"
     )
 
@@ -72,28 +72,18 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📂 File 0/32"
     )
 
-    # Live progress update
-    last_progress = ""
+    loop = asyncio.get_running_loop()
 
     async def update_progress(text):
-        nonlocal last_progress
-
-        if text == last_progress:
-            return
-
-        last_progress = text
-
         try:
             await message.edit_text(text)
         except Exception as e:
             print(f"Progress update error: {e}")
 
     def progress_callback(text):
-        # DuckDB search synchronous hai,
-        # isliye Telegram update ko event loop me bhejenge.
         asyncio.run_coroutine_threadsafe(
             update_progress(text),
-            asyncio.get_running_loop()
+            loop
         )
 
     try:
