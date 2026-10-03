@@ -1,4 +1,8 @@
+import os
 import asyncio
+
+from flask import Flask
+from threading import Thread
 
 from telegram import Update
 from telegram.ext import (
@@ -11,6 +15,32 @@ from config import BOT_TOKEN
 from dataset import search_number
 
 
+# -------------------------
+# Flask Web Server
+# -------------------------
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def home():
+    return "Telegram Dataset Bot is running."
+
+
+@app.route("/health")
+def health():
+    return "OK"
+
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+
+# -------------------------
+# Telegram Bot
+# -------------------------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 Bot Online\n\n"
@@ -20,6 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     if not context.args:
         await update.message.reply_text(
             "❌ Number provide karo.\n\n"
@@ -37,18 +68,18 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     message = await update.message.reply_text(
-        "🔍 Searching...\n"
-        "Please wait."
+        "🔍 Searching...\nPlease wait."
     )
 
     try:
-        # Dataset search ko background thread mein run karenge
+
         result = await asyncio.to_thread(
             search_number,
             number
         )
 
         if result:
+
             def clean(value):
                 return "N/A" if value is None else str(value)
 
@@ -61,7 +92,9 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Gender: {clean(result['Gender'])}\n"
                 f"Carrier: {clean(result['Carrier'])}"
             )
+
         else:
+
             response = (
                 "❌ No match found.\n\n"
                 f"Number: {number}"
@@ -70,28 +103,60 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.edit_text(response)
 
     except Exception as e:
+
         print(f"Search error: {e}")
 
         await message.edit_text(
-            "⚠️ Search ke waqt error aa gaya.\n"
-            "Please try again."
+            "⚠️ Search ke waqt error aa gaya."
         )
 
 
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+# -------------------------
+# Start
+# -------------------------
 
-    app.add_handler(
+async def run_bot():
+
+    telegram_app = (
+        Application
+        .builder()
+        .token(BOT_TOKEN)
+        .build()
+    )
+
+    telegram_app.add_handler(
         CommandHandler("start", start)
     )
 
-    app.add_handler(
+    telegram_app.add_handler(
         CommandHandler("search", search)
     )
 
-    print("🤖 BOT ONLINE")
+    await telegram_app.initialize()
+    await telegram_app.start()
 
-    app.run_polling()
+    print("🤖 TELEGRAM BOT ONLINE")
+
+    # Polling
+    await telegram_app.updater.start_polling()
+
+    # Server ko running rakho
+    while True:
+        await asyncio.sleep(3600)
+
+
+def main():
+
+    # Flask server
+    server_thread = Thread(
+        target=run_web_server,
+        daemon=True
+    )
+
+    server_thread.start()
+
+    # Telegram bot
+    asyncio.run(run_bot())
 
 
 if __name__ == "__main__":
