@@ -1,166 +1,97 @@
-import os
-import time
-import logging
-import threading
-from collections import defaultdict
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import asyncio
 
-import duckdb
 from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
-    MessageHandler,
-    filters,
     ContextTypes,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-PORT = int(os.environ.get("PORT", 8080))
-
-HF_BASE = "https://huggingface.co/datasets/Cyber-insight-309/truecallerdata/resolve/main"
-
-# Bina token — dataset public hai
-FILES = [
-    f"{HF_BASE}/combined_selected_columns.parquet",
-    f"{HF_BASE}/combined_truecaller_data.parquet",
-    f"{HF_BASE}/final_combined_data.parquet",
-]
-
-con = duckdb.connect()
-con.execute("INSTALL httpfs; LOAD httpfs;")
-con.execute("SET enable_http_metadata_cache=true;")
-con.execute("SET enable_object_cache=true;")
-con.execute("SET http_timeout=180000;")
-
-cache = {}
-CACHE_MAX = 1000
-user_last = defaultdict(float)
-RATE_LIMIT_SEC = 2
+from config import BOT_TOKEN
+from dataset import search_number
 
 
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-    def log_message(self, format, *args):
-        pass
-
-
-def start_health_server():
-    server = HTTPServer(("0.0.0.0", PORT), HealthHandler)
-    logger.info(f"Health server running on port {PORT}")
-    server.serve_forever()
-
-
-async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 *Truecaller Bot*\n\n"
-        "Number bhejo, main teeno databases mein check karke details nikal dunga.\n\n"
-        "⏳ Pehli query slow ho sakti hai (10-30 sec)\n"
-        "Example: `9876543210`",
-        parse_mode="Markdown",
+        "🤖 Bot Online\n\n"
+        "Number search karne ke liye:\n"
+        "/search 6000010150"
     )
 
 
-async def handle_number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    now = time.time()
-    if now - user_last[uid] < RATE_LIMIT_SEC:
-        return
-    user_last[uid] = now
-
-    num = update.message.text.strip()
-
-    if not num.isdigit() or not (5 <= len(num) <= 15):
-        await update.message.reply_text("❌ Sirf valid number bhejo (5-15 digits).")
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Number provide karo.\n\n"
+            "Example:\n"
+            "/search 6000010150"
+        )
         return
 
-    if num in cache:
-        await update.message.reply_text(cache[num], parse_mode="Markdown")
+    number = context.args[0].strip()
+
+    if not number.isdigit():
+        await update.message.reply_text(
+            "❌ Sirf numeric value enter karo."
+        )
         return
 
-    wait_msg = await update.message.reply_text("⏳ Search kar raha hun teeno files mein...")
-    await update.message.chat.send_action("typing")
+    message = await update.message.reply_text(
+        "🔍 Searching...\n"
+        "Please wait."
+    )
 
     try:
-        found_data = None
-        found_source = None
-        errors = []
+        # Dataset search ko background thread mein run karenge
+        result = await asyncio.to_thread(
+            search_number,
+            number
+        )
 
-        for i, url in enumerate(FILES, start=1):
-            try:
-                logger.info(f"Searching file {i}")
-                query = f'SELECT * FROM read_parquet(\'{url}\') WHERE "Number" = ? LIMIT 1'
-                result = con.execute(query, [num])
-                cols = [d[0] for d in result.description]
-                rows = result.fetchall()
+        if result:
+            def clean(value):
+                return "N/A" if value is None else str(value)
 
-                if rows:
-                    found_data = (cols, rows[0])
-                    found_source = url.split("/")[-1]
-                    logger.info(f"Found in file {i}")
-                    break
-            except Exception as e:
-                logger.warning(f"File {i} error: {e}")
-                errors.append(str(e)[:80])
-                continue
+            response = (
+                "✅ Match Found\n\n"
+                f"Number: {clean(result['Number'])}\n"
+                f"Name: {clean(result['Name'])}\n"
+                f"Address: {clean(result['Address'])}\n"
+                f"Email: {clean(result['Email'])}\n"
+                f"Gender: {clean(result['Gender'])}\n"
+                f"Carrier: {clean(result['Carrier'])}"
+            )
+        else:
+            response = (
+                "❌ No match found.\n\n"
+                f"Number: {number}"
+            )
 
-        try:
-            await wait_msg.delete()
-        except:
-            pass
-
-        if not found_data:
-            msg = f"❌ `{num}` ka koi record nahi mila teeno files mein."
-            if errors:
-                msg += f"\n\n⚠️ {len(errors)} file(s) mein error aaya."
-            cache[num] = msg
-            await update.message.reply_text(msg, parse_mode="Markdown")
-            return
-
-        cols, row = found_data
-        lines = [f"📋 *Record for {num}*", f"_Source: {found_source}_\n"]
-        for c, v in zip(cols, row):
-            val = "N/A" if v is None else str(v)
-            lines.append(f"*{c}*: `{val}`")
-
-        msg = "\n".join(lines)
-        if len(msg) > 4000:
-            msg = msg[:4000] + "\n... (truncated)"
-
-        if len(cache) < CACHE_MAX:
-            cache[num] = msg
-
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await message.edit_text(response)
 
     except Exception as e:
-        logger.exception("Query failed")
-        try:
-            await wait_msg.delete()
-        except:
-            pass
-        await update.message.reply_text(f"⚠️ Error: `{str(e)[:150]}`", parse_mode="Markdown")
+        print(f"Search error: {e}")
+
+        await message.edit_text(
+            "⚠️ Search ke waqt error aa gaya.\n"
+            "Please try again."
+        )
 
 
 def main():
-    threading.Thread(target=start_health_server, daemon=True).start()
-
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
 
-    logger.info("Bot starting (polling mode)...")
-    app.run_polling(drop_pending_updates=True)
+    app.add_handler(
+        CommandHandler("start", start)
+    )
+
+    app.add_handler(
+        CommandHandler("search", search)
+    )
+
+    print("🤖 BOT ONLINE")
+
+    app.run_polling()
 
 
 if __name__ == "__main__":
