@@ -102,7 +102,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 
-    # Initial message
+    # Initial progress message
     message = await update.message.reply_text(
         "🔍 <b>Searching...</b>\n\n"
         "📂 File 0/32",
@@ -110,11 +110,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-    # Current event loop
+    # Current Telegram event loop
     loop = asyncio.get_running_loop()
 
 
-    # Progress callback
+    # =========================
+    # Progress Callback
+    # =========================
+
     def progress_callback(text):
 
         future = asyncio.run_coroutine_threadsafe(
@@ -129,11 +132,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             future.result(timeout=10)
 
         except Exception as e:
-            print(f"Progress update error: {e}")
+            print(
+                f"Progress update error: {e}"
+            )
 
 
     try:
 
+        # Run search without blocking bot
         result = await asyncio.to_thread(
             search_number,
             number,
@@ -145,7 +151,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # MATCH FOUND
         # =========================
 
-        if result:
+        if result and not result.get("not_found"):
 
             def clean(value):
 
@@ -155,7 +161,27 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return str(value)
 
 
+            matched_file = result.get(
+                "matched_file"
+            )
+
+            matched_filename = result.get(
+                "matched_filename"
+            )
+
+            search_time = result.get(
+                "search_time",
+                0
+            )
+
+            files_checked = result.get(
+                "files_checked",
+                matched_file
+            )
+
+
             response = (
+
                 "✅ <b>MATCH FOUND</b>\n\n"
 
                 f"🔢 <b>Number:</b> "
@@ -174,7 +200,18 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{clean(result.get('Gender'))}\n"
 
                 f"📡 <b>Carrier:</b> "
-                f"{clean(result.get('Carrier'))}"
+                f"{clean(result.get('Carrier'))}\n\n"
+
+                "━━━━━━━━━━━━━━━━━━\n"
+
+                f"📂 <b>Matched File:</b> "
+                f"{files_checked}/32\n"
+
+                f"📄 <b>File:</b> "
+                f"<code>{matched_filename}</code>\n"
+
+                f"⏱️ <b>Search Time:</b> "
+                f"{search_time:.2f} sec"
 
                 + CREDIT
             )
@@ -186,12 +223,27 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         else:
 
+            search_time = 0
+
+            if result:
+                search_time = result.get(
+                    "search_time",
+                    0
+                )
+
+
             response = (
+
                 "❌ <b>NO MATCH FOUND</b>\n\n"
 
-                f"🔢 <b>Number:</b> {number}\n\n"
+                f"🔢 <b>Number:</b> "
+                f"{number}\n\n"
 
-                "📂 <b>32/32 files searched.</b>"
+                "📂 <b>Files Checked:</b> "
+                "32/32\n"
+
+                f"⏱️ <b>Search Time:</b> "
+                f"{search_time:.2f} sec"
 
                 + CREDIT
             )
@@ -206,7 +258,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
 
-        print(f"Search error: {e}")
+        print(
+            f"Search error: {e}"
+        )
+
 
         await message.edit_text(
             "⚠️ <b>Search ke waqt error aa gaya.</b>\n\n"
@@ -216,7 +271,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# Start Bot
+# Run Telegram Bot
 # =========================
 
 async def run_bot():
@@ -250,16 +305,20 @@ async def run_bot():
     await telegram_app.start()
 
 
-    print("🤖 TELEGRAM BOT ONLINE")
+    print(
+        "🤖 TELEGRAM BOT ONLINE"
+    )
 
 
     await telegram_app.updater.start_polling()
 
 
-    # Bot continuously running
+    # Keep bot running
     while True:
 
-        await asyncio.sleep(3600)
+        await asyncio.sleep(
+            3600
+        )
 
 
 # =========================
@@ -284,7 +343,7 @@ def main():
 
 
 # =========================
-# Run
+# Start
 # =========================
 
 if __name__ == "__main__":
