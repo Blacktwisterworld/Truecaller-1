@@ -2,3 +2,4 @@ python-telegram-bot>=21,<23
 huggingface_hub>=0.30
 pyarrow>=18
 pandas>=2.2
+Flask>=3.0
