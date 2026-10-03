@@ -42,20 +42,37 @@ def run_web_server():
 
 
 # =========================
-# Telegram /start
+# Credit
+# =========================
+
+CREDIT = (
+    "\n\n"
+    "━━━━━━━━━━━━━━━━━━\n"
+    "⚡ Powered by Cyber Insight 309\n"
+    "👨‍💻 Developer: Cyber Insight\n"
+    "👤 Name: Devid\n"
+    "📱 Telegram: @cyber_insight_309\n"
+    "📸 Insta: cyber_insight_309\n"
+    "━━━━━━━━━━━━━━━━━━"
+)
+
+
+# =========================
+# /start
 # =========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
-        "🤖 Bot Online\n\n"
-        "Sirf number search karne ke liye:\n\n"
-        "/search 6000010150"
+        "🤖 <b>Bot Online</b>\n\n"
+        "🔎 Sirf number search karne ke liye:\n\n"
+        "📌 <code>/search 6000010150</code>",
+        parse_mode="HTML"
     )
 
 
 # =========================
-# Telegram /search
+# /search
 # =========================
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,9 +80,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
 
         await update.message.reply_text(
-            "❌ Number provide karo.\n\n"
-            "Example:\n"
-            "/search 6000010150"
+            "❌ <b>Number provide karo.</b>\n\n"
+            "📝 Example:\n"
+            "<code>/search 6000010150</code>",
+            parse_mode="HTML"
         )
 
         return
@@ -77,7 +95,8 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not number.isdigit():
 
         await update.message.reply_text(
-            "❌ Sirf numeric number enter karo."
+            "❌ <b>Sirf numeric number enter karo.</b>",
+            parse_mode="HTML"
         )
 
         return
@@ -85,12 +104,13 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Initial message
     message = await update.message.reply_text(
-        "🔍 Searching...\n\n"
-        "📂 File 0/32"
+        "🔍 <b>Searching...</b>\n\n"
+        "📂 File 0/32",
+        parse_mode="HTML"
     )
 
 
-    # Current Telegram event loop
+    # Current event loop
     loop = asyncio.get_running_loop()
 
 
@@ -98,7 +118,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     def progress_callback(text):
 
         future = asyncio.run_coroutine_threadsafe(
-            message.edit_text(text),
+            message.edit_text(
+                text,
+                parse_mode="HTML"
+            ),
             loop
         )
 
@@ -111,8 +134,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
 
-        # Search ko separate thread me run karna
-        # taaki Telegram bot block na ho
         result = await asyncio.to_thread(
             search_number,
             number,
@@ -135,25 +156,27 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
             response = (
-                "✅ MATCH FOUND\n\n"
+                "✅ <b>MATCH FOUND</b>\n\n"
 
-                f"🔢 Number: "
+                f"🔢 <b>Number:</b> "
                 f"{clean(result.get('Number'))}\n"
 
-                f"👤 Name: "
+                f"👤 <b>Name:</b> "
                 f"{clean(result.get('Name'))}\n"
 
-                f"📍 Address: "
+                f"📍 <b>Address:</b> "
                 f"{clean(result.get('Address'))}\n"
 
-                f"📧 Email: "
+                f"📧 <b>Email:</b> "
                 f"{clean(result.get('Email'))}\n"
 
-                f"⚧ Gender: "
+                f"⚧ <b>Gender:</b> "
                 f"{clean(result.get('Gender'))}\n"
 
-                f"📡 Carrier: "
+                f"📡 <b>Carrier:</b> "
                 f"{clean(result.get('Carrier'))}"
+
+                + CREDIT
             )
 
 
@@ -164,16 +187,21 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
 
             response = (
-                "❌ No match found\n\n"
+                "❌ <b>NO MATCH FOUND</b>\n\n"
 
-                f"🔢 Number: {number}\n\n"
+                f"🔢 <b>Number:</b> {number}\n\n"
 
-                "📂 32/32 files searched."
+                "📂 <b>32/32 files searched.</b>"
+
+                + CREDIT
             )
 
 
         # Final result
-        await message.edit_text(response)
+        await message.edit_text(
+            response,
+            parse_mode="HTML"
+        )
 
 
     except Exception as e:
@@ -181,13 +209,14 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Search error: {e}")
 
         await message.edit_text(
-            "⚠️ Search ke waqt error aa gaya.\n\n"
-            "Please try again."
+            "⚠️ <b>Search ke waqt error aa gaya.</b>\n\n"
+            "🔄 Please try again.",
+            parse_mode="HTML"
         )
 
 
 # =========================
-# Telegram Bot
+# Start Bot
 # =========================
 
 async def run_bot():
@@ -227,7 +256,7 @@ async def run_bot():
     await telegram_app.updater.start_polling()
 
 
-    # Bot ko continuously running rakho
+    # Bot continuously running
     while True:
 
         await asyncio.sleep(3600)
@@ -239,7 +268,7 @@ async def run_bot():
 
 def main():
 
-    # Flask ko alag thread me run karo
+    # Flask server
     server_thread = Thread(
         target=run_web_server,
         daemon=True
