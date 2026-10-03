@@ -3,3 +3,4 @@ huggingface_hub>=0.30
 pyarrow>=18
 pandas>=2.2
 Flask>=3.0
+duckdb>=1.0
