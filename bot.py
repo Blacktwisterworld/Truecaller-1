@@ -4,11 +4,19 @@ import asyncio
 from flask import Flask
 from threading import Thread
 
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+
 from telegram.ext import (
     Application,
     CommandHandler,
+    CallbackQueryHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 from config import BOT_TOKEN
@@ -58,48 +66,151 @@ CREDIT = (
 
 
 # =========================
+# Main Menu
+# =========================
+
+def main_menu():
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "🔎 Number Search",
+                callback_data="number_search"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "👨‍💻 Developer About",
+                callback_data="developer_about"
+            )
+        ],
+    ]
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+# =========================
 # /start
 # =========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
-        "🤖 <b>Bot Online</b>\n\n"
-        "🔎 Sirf number search karne ke liye:\n\n"
-        "📌 <code>/search 6000010150</code>",
+        "🤖 <b>Welcome to Cyber Insight 309</b>\n\n"
+        "👇 <b>Select an option:</b>",
+        reply_markup=main_menu(),
         parse_mode="HTML"
     )
 
 
 # =========================
-# /search
+# Button Handler
 # =========================
 
-async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
-    if not context.args:
+    query = update.callback_query
 
-        await update.message.reply_text(
-            "❌ <b>Number provide karo.</b>\n\n"
-            "📝 Example:\n"
-            "<code>/search 6000010150</code>",
+    await query.answer()
+
+
+    # -------------------------
+    # Number Search
+    # -------------------------
+
+    if query.data == "number_search":
+
+        context.user_data["waiting_for_number"] = True
+
+        await query.edit_message_text(
+            "🔎 <b>Number Search</b>\n\n"
+            "📱 Please send the number you want to search.\n\n"
+            "Example:\n"
+            "<code>6000010150</code>",
             parse_mode="HTML"
         )
 
+
+    # -------------------------
+    # Developer About
+    # -------------------------
+
+    elif query.data == "developer_about":
+
+        await query.edit_message_text(
+            "👨‍💻 <b>Developer About</b>\n\n"
+            "⚡ <b>Cyber Insight 309</b>\n\n"
+            "👨‍💻 Developer: Cyber Insight\n"
+            "👤 Name: Devid\n"
+            "📱 Telegram: @cyber_insight_309\n"
+            "📸 Insta: cyber_insight_309\n\n"
+            "🚀 Search Engine: DuckDB\n"
+            "📂 Dataset Files: 32"
+            + CREDIT,
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔙 Back",
+                        callback_data="back_menu"
+                    )
+                ]
+            ]),
+            parse_mode="HTML"
+        )
+
+
+    # -------------------------
+    # Back
+    # -------------------------
+
+    elif query.data == "back_menu":
+
+        await query.edit_message_text(
+            "🤖 <b>Welcome to Cyber Insight 309</b>\n\n"
+            "👇 <b>Select an option:</b>",
+            reply_markup=main_menu(),
+            parse_mode="HTML"
+        )
+
+
+# =========================
+# Number Message
+# =========================
+
+async def number_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    # Check if bot is waiting for number
+    if not context.user_data.get(
+        "waiting_for_number"
+    ):
         return
 
 
-    number = context.args[0].strip()
+    number = update.message.text.strip()
 
 
     if not number.isdigit():
 
         await update.message.reply_text(
-            "❌ <b>Sirf numeric number enter karo.</b>",
+            "❌ <b>Sirf numeric number enter karo.</b>\n\n"
+            "Example:\n"
+            "<code>6000010150</code>",
             parse_mode="HTML"
         )
 
         return
+
+
+    # Stop waiting
+    context.user_data[
+        "waiting_for_number"
+    ] = False
 
 
     # Initial progress message
@@ -110,7 +221,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-    # Current Telegram event loop
     loop = asyncio.get_running_loop()
 
 
@@ -129,9 +239,13 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         try:
-            future.result(timeout=10)
+
+            future.result(
+                timeout=10
+            )
 
         except Exception as e:
+
             print(
                 f"Progress update error: {e}"
             )
@@ -139,7 +253,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
 
-        # Run search without blocking bot
         result = await asyncio.to_thread(
             search_number,
             number,
@@ -151,7 +264,9 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # MATCH FOUND
         # =========================
 
-        if result and not result.get("not_found"):
+        if result and not result.get(
+            "not_found"
+        ):
 
             def clean(value):
 
@@ -226,6 +341,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             search_time = 0
 
             if result:
+
                 search_time = result.get(
                     "search_time",
                     0
@@ -249,7 +365,6 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
 
-        # Final result
         await message.edit_text(
             response,
             parse_mode="HTML"
@@ -293,9 +408,17 @@ async def run_bot():
 
 
     telegram_app.add_handler(
-        CommandHandler(
-            "search",
-            search
+        CallbackQueryHandler(
+            button_handler
+        )
+    )
+
+
+    telegram_app.add_handler(
+        MessageHandler(
+            filters.TEXT
+            & ~filters.COMMAND,
+            number_message
         )
     )
 
@@ -313,7 +436,6 @@ async def run_bot():
     await telegram_app.updater.start_polling()
 
 
-    # Keep bot running
     while True:
 
         await asyncio.sleep(
@@ -327,7 +449,6 @@ async def run_bot():
 
 def main():
 
-    # Flask server
     server_thread = Thread(
         target=run_web_server,
         daemon=True
@@ -336,7 +457,6 @@ def main():
     server_thread.start()
 
 
-    # Telegram bot
     asyncio.run(
         run_bot()
     )
