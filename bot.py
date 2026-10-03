@@ -38,13 +38,13 @@ def run_web_server():
 
 
 # -------------------------
-# Telegram Bot
+# Telegram Commands
 # -------------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 Bot Online\n\n"
-        "Number search karne ke liye:\n"
+        "Sirf number search karne ke liye:\n\n"
         "/search 6000010150"
     )
 
@@ -63,19 +63,45 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not number.isdigit():
         await update.message.reply_text(
-            "❌ Sirf numeric value enter karo."
+            "❌ Sirf numeric number enter karo."
         )
         return
 
     message = await update.message.reply_text(
-        "🔍 Searching...\nPlease wait."
+        "🔍 Searching...\n\n"
+        "📂 File 0/32"
     )
+
+    # Live progress update
+    last_progress = ""
+
+    async def update_progress(text):
+        nonlocal last_progress
+
+        if text == last_progress:
+            return
+
+        last_progress = text
+
+        try:
+            await message.edit_text(text)
+        except Exception as e:
+            print(f"Progress update error: {e}")
+
+    def progress_callback(text):
+        # DuckDB search synchronous hai,
+        # isliye Telegram update ko event loop me bhejenge.
+        asyncio.run_coroutine_threadsafe(
+            update_progress(text),
+            asyncio.get_running_loop()
+        )
 
     try:
 
         result = await asyncio.to_thread(
             search_number,
-            number
+            number,
+            progress_callback
         )
 
         if result:
@@ -84,20 +110,21 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return "N/A" if value is None else str(value)
 
             response = (
-                "✅ Match Found\n\n"
-                f"Number: {clean(result['Number'])}\n"
-                f"Name: {clean(result['Name'])}\n"
-                f"Address: {clean(result['Address'])}\n"
-                f"Email: {clean(result['Email'])}\n"
-                f"Gender: {clean(result['Gender'])}\n"
-                f"Carrier: {clean(result['Carrier'])}"
+                "✅ MATCH FOUND\n\n"
+                f"🔢 Number: {clean(result['Number'])}\n"
+                f"👤 Name: {clean(result['Name'])}\n"
+                f"📍 Address: {clean(result['Address'])}\n"
+                f"📧 Email: {clean(result['Email'])}\n"
+                f"⚧ Gender: {clean(result['Gender'])}\n"
+                f"📡 Carrier: {clean(result['Carrier'])}"
             )
 
         else:
 
             response = (
-                "❌ No match found.\n\n"
-                f"Number: {number}"
+                "❌ No match found\n\n"
+                f"🔢 Number: {number}\n\n"
+                "📂 32/32 files searched."
             )
 
         await message.edit_text(response)
@@ -112,7 +139,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # -------------------------
-# Start
+# Start Bot
 # -------------------------
 
 async def run_bot():
@@ -137,17 +164,14 @@ async def run_bot():
 
     print("🤖 TELEGRAM BOT ONLINE")
 
-    # Polling
     await telegram_app.updater.start_polling()
 
-    # Server ko running rakho
     while True:
         await asyncio.sleep(3600)
 
 
 def main():
 
-    # Flask server
     server_thread = Thread(
         target=run_web_server,
         daemon=True
@@ -155,7 +179,6 @@ def main():
 
     server_thread.start()
 
-    # Telegram bot
     asyncio.run(run_bot())
 
 
